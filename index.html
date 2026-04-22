@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C172S Weight and Balance and Takeoff/Landing Distance Calculations</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111b2e;
+      --panel-2: #16233b;
+      --text: #f4f7fb;
+      --muted: #aebbd0;
+      --accent: #60a5fa;
+      --accent-2: #22c55e;
+      --border: #2a3a59;
+      --warn: #facc15;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #08101d 0%, #0b1220 100%);
+      color: var(--text);
+      padding: 20px;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 28px; margin: 0 0 14px; }
+    .sub { color: var(--muted); margin: 0 0 18px; }
+    .tabs {
+      display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 16px; border-radius: 12px; cursor: pointer; font-weight: 700;
+    }
+    .tab-btn.active { background: var(--accent); color: #08101d; border-color: var(--accent); }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;
+    }
+    .card {
+      background: rgba(17, 27, 46, 0.95); border: 1px solid var(--border);
+      border-radius: 18px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    h2, h3 { margin-top: 0; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input {
+      width: 100%; background: #0b1220; border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 16px;
+    }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .small { font-size: 13px; color: var(--muted); }
+    .answer { font-size: 32px; font-weight: 800; color: var(--accent-2); }
+    table {
+      width: 100%; border-collapse: collapse; margin-top: 10px; overflow: hidden;
+      border-radius: 12px; background: #0b1220;
+    }
+    th, td {
+      border: 1px solid var(--border); padding: 10px; text-align: center;
+    }
+    th { background: #0f1a2e; }
+    .highlight { color: var(--warn); font-weight: 800; }
+    .formula {
+      font-family: Consolas, monospace; background: #0b1220; border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px; line-height: 1.6;
+    }
+    .wb-layout {
+      display: grid;
+      grid-template-columns: minmax(540px, 1.1fr) minmax(420px, 0.9fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .wb-panel {
+      background: rgba(17, 27, 46, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .wb-panel-header {
+      background: #0f1a2e;
+      color: var(--text);
+      text-align: center;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      font-size: 22px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .wb-panel-body {
+      padding: 0;
+      background: rgba(17, 27, 46, 0.95);
+    }
+    .wb-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0;
+      border-radius: 0;
+      overflow: visible;
+      background: #0b1220;
+    }
+    .wb-table th, .wb-table td {
+      border: 1px solid var(--border);
+      padding: 10px 10px;
+      text-align: center;
+      font-size: 15px;
+    }
+    .wb-table thead th {
+      background: #0f1a2e;
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .wb-col-item {
+      background: #13213a;
+      color: var(--text);
+      font-weight: 800;
+      width: 24%;
+    }
+    .wb-row-input td:not(.wb-col-item),
+    .wb-row-fuel td:not(.wb-col-item),
+    .wb-row-deduct td:not(.wb-col-item) {
+      background: #16233b;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .wb-row-summary td {
+      background: #10203a;
+      color: #7dd3fc;
+      font-weight: 900;
+      font-size: 16px;
+    }
+    .wb-table input {
+      width: 100%;
+      background: #0b1220;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 8px;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .wb-table input::placeholder { color: #89a1c2; }
+
+    .wb-controls {
+      display: none;
+    }
+    .wb-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 12px 16px 16px;
+      background: rgba(17, 27, 46, 0.95);
+      border-top: 1px solid var(--border);
+    }
+    .cg-shell {
+      padding: 12px 12px 14px;
+      background: #eef1f4;
+    }
+    .cg-shell canvas {
+      width: 100%;
+      background: #efefef;
+      border: 1px solid #8b98a8;
+      border-radius: 6px;
+      display: block;
+    }
+    .cg-meta {
+      padding: 12px 16px 16px;
+      background: rgba(17, 27, 46, 0.95);
+      color: var(--text);
+      border-top: 1px solid var(--border);
+    }
+    .cg-meta .answer {
+      font-size: 24px;
+      color: #7dd3fc;
+    }
+    @media (max-width: 980px) {
+      .wb-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Weight and Balance and Takeoff and Landing Distance Calculations</h1>
+    
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="wb">Weight and Balance</button>
+      <button class="tab-btn" data-tab="perf">Takeoff and Landing Distance</button>
+    </div>
+
+    
+    <section id="wb" class="tab active">
+      <div class="wb-layout">
+        <div class="wb-panel">
+          <div class="wb-panel-header">WEIGHT &amp; BALANCE CALCULATOR</div>
+          <div class="wb-panel-body">
+            <table class="wb-table">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th>Weight</th>
+                  <th>Arm (x)</th>
+                  <th>Moment</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="wb-row-input">
+                  <td class="wb-col-item">BEW</td>
+                  <td><input id="emptyWeight" type="number" value="1680" step="0.01"></td>
+                  <td><input id="emptyArm" type="number" value="40.50" step="0.01"></td>
+                  <td id="momentEmpty">0.00</td>
+                </tr>
+                <tr class="wb-row-input">
+                  <td class="wb-col-item">Front</td>
+                  <td><input id="frontWeight" type="number" value="340" step="0.01"></td>
+                  <td><input id="frontArm" type="number" value="37.00" step="0.01"></td>
+                  <td id="momentFront">0.00</td>
+                </tr>
+                <tr class="wb-row-input">
+                  <td class="wb-col-item">Rear</td>
+                  <td><input id="rearWeight" type="number" value="0" step="0.01"></td>
+                  <td><input id="rearArm" type="number" value="73.00" step="0.01"></td>
+                  <td id="momentRear">0.00</td>
+                </tr>
+                <tr class="wb-row-input">
+                  <td class="wb-col-item">Bag A</td>
+                  <td><input id="bag1Weight" type="number" value="0" step="0.01" placeholder="Enter weight"></td>
+                  <td><input id="bag1Arm" type="number" value="95.00" step="0.01"></td>
+                  <td id="momentBag1">0.00</td>
+                </tr>
+                <tr class="wb-row-input">
+                  <td class="wb-col-item">Bag B</td>
+                  <td><input id="bag2Weight" type="number" value="0" step="0.01" placeholder="Enter weight"></td>
+                  <td><input id="bag2Arm" type="number" value="123.00" step="0.01"></td>
+                  <td id="momentBag2">0.00</td>
+                </tr>
+                <tr class="wb-row-fuel">
+                  <td class="wb-col-item">Fuel</td>
+                  <td><input id="fuelWeight" type="number" value="180" step="0.01"></td>
+                  <td><input id="fuelArm" type="number" value="48.00" step="0.01"></td>
+                  <td id="momentFuel">0.00</td>
+                </tr>
+                <tr class="wb-row-summary">
+                  <td class="wb-col-item">Ramp</td>
+                  <td id="rampWeightCell">0.00</td>
+                  <td id="rampCgCell">0.00</td>
+                  <td id="rampMomentCell">0.00</td>
+                </tr>
+                <tr class="wb-row-deduct">
+                  <td class="wb-col-item">Less Taxi</td>
+                  <td><input id="taxiFuelWeight" type="number" value="8.4" step="0.01"></td>
+                  <td id="fuelArmDisplay1">48.00</td>
+                  <td id="taxiFuelMomentCell">0.00</td>
+                </tr>
+                <tr class="wb-row-summary">
+                  <td class="wb-col-item">Takeoff</td>
+                  <td id="takeoffWeightCell">0.00</td>
+                  <td id="takeoffCgCell">0.00</td>
+                  <td id="takeoffMomentCell">0.00</td>
+                </tr>
+                <tr class="wb-row-deduct">
+                  <td class="wb-col-item">Less Cruise</td>
+                  <td><input id="cruiseFuelWeight" type="number" value="60" step="0.01"></td>
+                  <td id="fuelArmDisplay2">48.00</td>
+                  <td id="cruiseFuelMomentCell">0.00</td>
+                </tr>
+                <tr class="wb-row-summary">
+                  <td class="wb-col-item">Landing</td>
+                  <td id="landingWeightCell">0.00</td>
+                  <td id="landingCgCell">0.00</td>
+                  <td id="landingMomentCell">0.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="wb-panel">
+          <div class="wb-panel-header">CENTER OF GRAVITY LIMITS</div>
+          <div class="cg-shell">
+            <canvas id="cgCanvas" width="620" height="760"></canvas>
+          </div>
+          <div class="cg-meta">
+            <div>Takeoff point: <span class="answer" id="cgPointText">0.00 @ 0.00 in</span></div>
+            <div class="small" id="cgStatus" style="margin-top:8px">Status unavailable.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="perf" class="tab">
+      <div class="grid">
+        <div class="card">
+          <h2>Interpolation Inputs</h2>
+          <div class="row2">
+            <div>
+              <label>Left Temperature (°C)</label>
+              <input id="tLeft" type="number" value="20" step="0.01">
+            </div>
+            <div>
+              <label>Right Temperature (°C)</label>
+              <input id="tRight" type="number" value="30" step="0.01">
+            </div>
+          </div>
+          <label>Actual Temperature (°C)</label>
+          <input id="tActual" type="number" value="22" step="0.01">
+
+          <div class="row2">
+            <div>
+              <label>Lower Pressure Altitude (ft)</label>
+              <input id="paLow" type="number" value="0" step="0.01">
+            </div>
+            <div>
+              <label>Upper Pressure Altitude (ft)</label>
+              <input id="paHigh" type="number" value="1000" step="0.01">
+            </div>
+          </div>
+          <label>Actual Pressure Altitude (ft)</label>
+          <input id="paActual" type="number" value="211" step="0.01">
+
+          <h3>Chart Corner Values</h3>
+          <div class="row2">
+            <div>
+              <label>Lower Alt / Left Temp</label>
+              <input id="q11" type="number" value="995" step="0.01">
+            </div>
+            <div>
+              <label>Lower Alt / Right Temp</label>
+              <input id="q21" type="number" value="1070" step="0.01">
+            </div>
+          </div>
+          <div class="row2">
+            <div>
+              <label>Upper Alt / Left Temp</label>
+              <input id="q12" type="number" value="1090" step="0.01">
+            </div>
+            <div>
+              <label>Upper Alt / Right Temp</label>
+              <input id="q22" type="number" value="1170" step="0.01">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Answer</h2>
+          <p>Interpolated result: <span class="answer" id="finalAnswer">0.00</span></p>
+          <p class="small">Rounded to the 100th place.</p>
+
+          <div class="formula" id="mathBreakdown"></div>
+
+          <table>
+            <thead>
+              <tr>
+                <th id="gridH1"></th>
+                <th id="gridH2" class="highlight"></th>
+                <th id="gridH3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div id="grid00"></div>
+                  <div class="small" id="gridPaLow"></div>
+                </td>
+                <td class="highlight" id="gridTopMid"></td>
+                <td id="grid10"></td>
+              </tr>
+              <tr>
+                <td class="highlight" id="gridLeftMid"></td>
+                <td class="highlight" id="gridCenter"></td>
+                <td class="highlight" id="gridRightMid"></td>
+              </tr>
+              <tr>
+                <td>
+                  <div id="grid01"></div>
+                  <div class="small" id="gridPaHigh"></div>
+                </td>
+                <td class="highlight" id="gridBottomMid"></td>
+                <td id="grid11"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    function n(id) {
+      return Number(document.getElementById(id).value);
+    }
+
+    function round2(value) {
+      return Math.round(value * 100) / 100;
+    }
+
+    function clampFraction(actual, low, high) {
+      if (high === low) return 0;
+      return (actual - low) / (high - low);
+    }
+
+    function interpolate(a, b, fraction) {
+      return a + (b - a) * fraction;
+    }
+
+    function updateWB() {
+      const emptyWeight = n('emptyWeight');
+      const emptyArm = n('emptyArm');
+      const frontWeight = n('frontWeight');
+      const frontArm = n('frontArm');
+      const rearWeight = n('rearWeight');
+      const rearArm = n('rearArm');
+      const bag1Weight = n('bag1Weight');
+      const bag1Arm = n('bag1Arm');
+      const bag2Weight = n('bag2Weight');
+      const bag2Arm = n('bag2Arm');
+      const fuelWeight = Math.max(0, n('fuelWeight'));
+      const fuelArm = n('fuelArm');
+      const taxiFuelWeight = Math.min(Math.max(0, n('taxiFuelWeight')), fuelWeight);
+      const cruiseFuelWeight = Math.min(Math.max(0, n('cruiseFuelWeight')), Math.max(0, fuelWeight - taxiFuelWeight));
+
+      const emptyMoment = emptyWeight * emptyArm;
+      const frontMoment = frontWeight * frontArm;
+      const rearMoment = rearWeight * rearArm;
+      const bag1Moment = bag1Weight * bag1Arm;
+      const bag2Moment = bag2Weight * bag2Arm;
+      const fuelMoment = fuelWeight * fuelArm;
+      const taxiFuelMoment = taxiFuelWeight * fuelArm;
+      const cruiseFuelMoment = cruiseFuelWeight * fuelArm;
+
+      const rampWeight = emptyWeight + frontWeight + rearWeight + bag1Weight + bag2Weight + fuelWeight;
+      const rampMoment = emptyMoment + frontMoment + rearMoment + bag1Moment + bag2Moment + fuelMoment;
+      const rampCg = rampWeight ? rampMoment / rampWeight : 0;
+
+      const takeoffWeight = rampWeight - taxiFuelWeight;
+      const takeoffMoment = rampMoment - taxiFuelMoment;
+      const takeoffCg = takeoffWeight ? takeoffMoment / takeoffWeight : 0;
+
+      const landingWeight = takeoffWeight - cruiseFuelWeight;
+      const landingMoment = takeoffMoment - cruiseFuelMoment;
+      const landingCg = landingWeight ? landingMoment / landingWeight : 0;
+
+      document.getElementById('momentEmpty').textContent = round2(emptyMoment).toFixed(2);
+      document.getElementById('momentFront').textContent = round2(frontMoment).toFixed(2);
+      document.getElementById('momentRear').textContent = round2(rearMoment).toFixed(2);
+      document.getElementById('momentBag1').textContent = round2(bag1Moment).toFixed(2);
+      document.getElementById('momentBag2').textContent = round2(bag2Moment).toFixed(2);
+      document.getElementById('momentFuel').textContent = round2(fuelMoment).toFixed(2);
+      document.getElementById('fuelArmDisplay1').textContent = round2(fuelArm).toFixed(2);
+      document.getElementById('fuelArmDisplay2').textContent = round2(fuelArm).toFixed(2);
+
+      document.getElementById('rampWeightCell').textContent = round2(rampWeight).toFixed(2);
+      document.getElementById('rampMomentCell').textContent = round2(rampMoment).toFixed(2);
+      document.getElementById('rampCgCell').textContent = round2(rampCg).toFixed(2);
+
+      document.getElementById('taxiFuelMomentCell').textContent = `-${round2(taxiFuelMoment).toFixed(2)}`;
+
+      document.getElementById('takeoffWeightCell').textContent = round2(takeoffWeight).toFixed(2);
+      document.getElementById('takeoffMomentCell').textContent = round2(takeoffMoment).toFixed(2);
+      document.getElementById('takeoffCgCell').textContent = round2(takeoffCg).toFixed(2);
+
+      document.getElementById('cruiseFuelMomentCell').textContent = `-${round2(cruiseFuelMoment).toFixed(2)}`;
+
+      document.getElementById('landingWeightCell').textContent = round2(landingWeight).toFixed(2);
+      document.getElementById('landingMomentCell').textContent = round2(landingMoment).toFixed(2);
+      document.getElementById('landingCgCell').textContent = round2(landingCg).toFixed(2);
+
+      document.getElementById('cgPointText').textContent = `${round2(takeoffWeight).toFixed(2)} @ ${round2(takeoffCg).toFixed(2)} in`;
+
+      drawCgGraph(rampWeight, rampCg, takeoffWeight, takeoffCg, landingWeight, landingCg);
+    }
+
+    function pointInPolygon(x, y, points) {
+      let inside = false;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const xi = points[i][0], yi = points[i][1];
+        const xj = points[j][0], yj = points[j][1];
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    
+    function drawCgGraph(rampWeight, rampCg, takeoffWeight, takeoffCg, landingWeight, landingCg) {
+      const canvas = document.getElementById('cgCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const plot = { left: 88, right: 540, top: 118, bottom: 660 };
+      const minArm = 34;
+      const maxArm = 49;
+      const minWeight = 1500;
+      const maxWeight = 2600;
+      const mmStart = 875;
+      const mmEnd = 1225;
+      const kgMin = 700;
+      const kgMax = 1150;
+
+      const xOf = arm => plot.left + ((arm - minArm) / (maxArm - minArm)) * (plot.right - plot.left);
+      const yOf = wt => plot.bottom - ((wt - minWeight) / (maxWeight - minWeight)) * (plot.bottom - plot.top);
+      const mmOf = arm => mmStart + ((arm - minArm) / (maxArm - minArm)) * (mmEnd - mmStart);
+      const kgOf = wt => kgMin + ((wt - minWeight) / (maxWeight - minWeight)) * (kgMax - kgMin);
+
+      ctx.fillStyle = '#efefef';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = '#2b2b2b';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('CENTER OF GRAVITY LIMITS', w / 2, 32);
+
+      ctx.font = '11px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#555';
+      ctx.fillText('B4078', 16, 74);
+
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#222';
+      ctx.fillText('Airplane C.G. Location - Millimeters Aft of Datum (FS 0.0)', w / 2, 64);
+
+      ctx.strokeStyle = '#8b8b8b';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(plot.left, plot.top, plot.right - plot.left, plot.bottom - plot.top);
+
+      for (let arm = minArm; arm <= maxArm; arm += 0.2) {
+        const x = xOf(arm);
+        const major = Math.abs(arm - Math.round(arm)) < 1e-6;
+        const half = Math.abs((arm * 10) % 10 - 5) < 1e-6;
+        ctx.strokeStyle = major ? '#8f8f8f' : half ? '#b2b2b2' : '#d6d6d6';
+        ctx.lineWidth = major ? 1 : 0.6;
+        ctx.beginPath();
+        ctx.moveTo(x, plot.top);
+        ctx.lineTo(x, plot.bottom);
+        ctx.stroke();
+      }
+
+      for (let wt = minWeight; wt <= maxWeight; wt += 20) {
+        const y = yOf(wt);
+        const major = wt % 100 === 0;
+        const half = wt % 50 === 0 && !major;
+        ctx.strokeStyle = major ? '#8f8f8f' : half ? '#b2b2b2' : '#d6d6d6';
+        ctx.lineWidth = major ? 1 : 0.6;
+        ctx.beginPath();
+        ctx.moveTo(plot.left, y);
+        ctx.lineTo(plot.right, y);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#222';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      for (let arm = 34; arm <= 49; arm += 1) {
+        const x = xOf(arm);
+        ctx.fillText(String(arm), x, plot.bottom + 22);
+      }
+
+      ctx.font = '11px Arial';
+      for (let arm = 34; arm <= 49; arm += 1) {
+        const x = xOf(arm);
+        const mm = Math.round(mmOf(arm) / 25) * 25;
+        ctx.fillText(String(mm), x, plot.top - 26);
+      }
+      ctx.font = '12px Arial';
+      for (let arm = 35; arm <= 48; arm += 2) {
+        const x = xOf(arm);
+        ctx.fillText(String(Math.round(mmOf(arm) / 25) * 25), x, plot.top - 42);
+      }
+
+      ctx.textAlign = 'right';
+      for (let wt = 1500; wt <= 2600; wt += 100) {
+        const y = yOf(wt);
+        ctx.fillText(String(wt), plot.left - 8, y + 4);
+      }
+
+      ctx.textAlign = 'left';
+      for (let kg = 700; kg <= 1150; kg += 50) {
+        const wt = minWeight + ((kg - kgMin) / (kgMax - kgMin)) * (maxWeight - minWeight);
+        const y = yOf(wt);
+        ctx.fillText(String(kg), plot.right + 10, y + 4);
+      }
+
+      ctx.save();
+      ctx.translate(26, (plot.top + plot.bottom) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center';
+      ctx.font = '12px Arial';
+      ctx.fillText('Loaded Airplane Weight (Pounds)', 0, 0);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(w - 18, (plot.top + plot.bottom) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center';
+      ctx.font = '12px Arial';
+      ctx.fillText('Loaded Airplane Weight (Kilograms)', 0, 0);
+      ctx.restore();
+
+      ctx.textAlign = 'center';
+      ctx.font = '12px Arial';
+      ctx.fillText('Airplane C.G. Location - Inches Aft of Datum (FS 0.0)', w / 2, plot.bottom + 48);
+
+      const utility = [
+        [35.0, 1500],
+        [35.0, 1950],
+        [37.2, 2200],
+        [40.5, 2200],
+        [40.5, 1500]
+      ];
+      const normal = [
+        [35.0, 1950],
+        [37.2, 2200],
+        [41.5, 2550],
+        [47.3, 2550],
+        [47.3, 1500],
+        [35.0, 1500]
+      ];
+      const utilPx = utility.map(([arm, wt]) => [xOf(arm), yOf(wt)]);
+      const normalPx = normal.map(([arm, wt]) => [xOf(arm), yOf(wt)]);
+
+      ctx.fillStyle = 'rgba(120,120,120,0.35)';
+      ctx.beginPath();
+      utilPx.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      normalPx.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.beginPath();
+      utilPx.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.fillStyle = '#222';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Center-of-Gravity', xOf(34.9), yOf(2435));
+      ctx.fillText('Limits', xOf(34.9), yOf(2405));
+
+      ctx.textAlign = 'center';
+      ctx.fillText('Maximum Takeoff Weight', xOf(43.9), yOf(2517));
+      ctx.fillText('2550 Pounds', xOf(43.9), yOf(2478));
+
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillRect(xOf(36.45), yOf(2008), 94, 44);
+      ctx.fillStyle = '#111';
+      ctx.fillText('Utility', xOf(37.7), yOf(2005));
+      ctx.fillText('Category', xOf(37.7), yOf(1975));
+
+      ctx.fillText('Normal', xOf(43.6), yOf(2110));
+      ctx.fillText('Category', xOf(43.6), yOf(2078));
+
+      const points = [
+        { label: 'Ramp', weight: rampWeight, cg: rampCg, color: '#0b63c7' },
+        { label: 'Takeoff', weight: takeoffWeight, cg: takeoffCg, color: '#24a148' },
+        { label: 'Landing', weight: landingWeight, cg: landingCg, color: '#cf2336' }
+      ].filter(p => Number.isFinite(p.weight) && Number.isFinite(p.cg) && p.weight > 0);
+
+      const allArea = normalPx;
+      if (!points.length) {
+        document.getElementById('cgStatus').textContent = 'Enter valid values to plot the CG points.';
+      } else {
+        const statuses = [];
+        points.forEach((point) => {
+          const px = xOf(point.cg);
+          const py = yOf(point.weight);
+          const inside = pointInPolygon(px, py, allArea);
+          statuses.push(`${point.label}: ${inside ? 'inside' : 'outside'}`);
+          ctx.fillStyle = point.color;
+          ctx.strokeStyle = point.color;
+          ctx.beginPath();
+          ctx.arc(px, py, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = '#fff';
+          ctx.stroke();
+        });
+        document.getElementById('cgStatus').textContent = `Envelope check — ${statuses.join(' | ')}.`;
+      }
+
+      const legendX = xOf(42.7);
+      const legendY = yOf(1710);
+      const legendW = 190;
+      const legendH = 100;
+      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      ctx.strokeStyle = '#8d8d8d';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(legendX, legendY, legendW, legendH, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.font = '12px Arial';
+      const legendItems = [
+        ['Ramp', rampWeight, '#0b63c7'],
+        ['Takeoff', takeoffWeight, '#24a148'],
+        ['Landing', landingWeight, '#cf2336']
+      ];
+      legendItems.forEach((item, idx) => {
+        const [label, wt, color] = item;
+        const y = legendY + 22 + idx * 28;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(legendX + 18, y - 4, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.fillText(`${label} (${Number.isFinite(wt) ? round2(wt).toFixed(1) : '0.0'})`, legendX + 34, y);
+      });
+
+      ctx.textAlign = 'center';
+      ctx.font = '12px Arial';
+      ctx.fillStyle = '#222';
+      ctx.fillText('Figure 6-8', w / 2, h - 16);
+    }
+
+
+    function updatePerf() {
+      const tLeft = n('tLeft');
+      const tRight = n('tRight');
+      const tActual = n('tActual');
+      const paLow = n('paLow');
+      const paHigh = n('paHigh');
+      const paActual = n('paActual');
+      const q11 = n('q11');
+      const q21 = n('q21');
+      const q12 = n('q12');
+      const q22 = n('q22');
+
+      const tempFraction = clampFraction(tActual, tLeft, tRight);
+      const altFraction = clampFraction(paActual, paLow, paHigh);
+
+      const topMid = interpolate(q11, q21, tempFraction);
+      const bottomMid = interpolate(q12, q22, tempFraction);
+      const leftMid = interpolate(q11, q12, altFraction);
+      const rightMid = interpolate(q21, q22, altFraction);
+      const center = interpolate(topMid, bottomMid, altFraction);
+
+      document.getElementById('gridH1').textContent = `${round2(tLeft)}°C`;
+      document.getElementById('gridH2').textContent = `${round2(tActual)}°C`;
+      document.getElementById('gridH3').textContent = `${round2(tRight)}°C`;
+      document.getElementById('grid00').textContent = round2(q11).toFixed(2);
+      document.getElementById('grid10').textContent = round2(q21).toFixed(2);
+      document.getElementById('grid01').textContent = round2(q12).toFixed(2);
+      document.getElementById('grid11').textContent = round2(q22).toFixed(2);
+      document.getElementById('gridPaLow').textContent = `${round2(paLow)} ft`;
+      document.getElementById('gridPaHigh').textContent = `${round2(paHigh)} ft`;
+      document.getElementById('gridTopMid').textContent = round2(topMid).toFixed(2);
+      document.getElementById('gridBottomMid').textContent = round2(bottomMid).toFixed(2);
+      document.getElementById('gridLeftMid').textContent = round2(leftMid).toFixed(2);
+      document.getElementById('gridRightMid').textContent = round2(rightMid).toFixed(2);
+      document.getElementById('gridCenter').textContent = round2(center).toFixed(2);
+      document.getElementById('finalAnswer').textContent = round2(center).toFixed(2);
+
+      document.getElementById('mathBreakdown').innerHTML =
+        `Temperature fraction = (${round2(tActual)} - ${round2(tLeft)}) ÷ (${round2(tRight)} - ${round2(tLeft)}) = ${round2(tempFraction).toFixed(4)}<br>` +
+        `Altitude fraction = (${round2(paActual)} - ${round2(paLow)}) ÷ (${round2(paHigh)} - ${round2(paLow)}) = ${round2(altFraction).toFixed(4)}<br><br>` +
+        `Top row = ${round2(q11).toFixed(2)} + (${round2(q21).toFixed(2)} - ${round2(q11).toFixed(2)}) × ${round2(tempFraction).toFixed(4)} = ${round2(topMid).toFixed(2)}<br>` +
+        `Bottom row = ${round2(q12).toFixed(2)} + (${round2(q22).toFixed(2)} - ${round2(q12).toFixed(2)}) × ${round2(tempFraction).toFixed(4)} = ${round2(bottomMid).toFixed(2)}<br><br>` +
+        `Final = ${round2(topMid).toFixed(2)} + (${round2(bottomMid).toFixed(2)} - ${round2(topMid).toFixed(2)}) × ${round2(altFraction).toFixed(4)} = ${round2(center).toFixed(2)}`;
+    }
+
+    document.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', () => {
+        updateWB();
+        updatePerf();
+      });
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    updateWB();
+    updatePerf();
+  </script>
+</body>
+</html>
